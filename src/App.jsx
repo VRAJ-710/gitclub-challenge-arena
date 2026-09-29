@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
+import { LiveContestLobby } from './components/LiveContestLobby';
 import { DailyQuest } from './components/DailyQuest';
 import { ChallengeCard } from './components/ChallengeCard';
 import { ChallengeModal } from './components/ChallengeModal';
@@ -12,6 +13,7 @@ import { SubmitCustomChallengeModal } from './components/SubmitCustomChallengeMo
 import { Toast } from './components/Toast';
 import { Footer } from './components/Footer';
 import { storageService } from './services/storageService';
+import { realtimeService } from './services/realtimeService';
 import { sounds } from './services/soundEffects';
 import { Sparkles, Terminal, Code2, Layers, AlertCircle, RefreshCw } from 'lucide-react';
 
@@ -48,6 +50,36 @@ export function App() {
     setLeaderboard(storageService.getLeaderboard());
   }, [user]);
 
+  // Real-Time Subscriptions
+  useEffect(() => {
+    // 1. Sync remote submissions from other contestants in real-time
+    const unsubSubmissions = realtimeService.on('submissions', (data) => {
+      if (data.studentId !== user.studentId) {
+        sounds.check();
+        showToast(
+          "Competitor Activity! ⚡",
+          `${data.user?.name || data.studentId} solved ${data.challengeTitle || 'a challenge'} (+${data.xpGained || 100} XP)`
+        );
+        // Refresh leaderboard to reflect competitor's points
+        setTimeout(() => {
+          setLeaderboard(storageService.getLeaderboard());
+        }, 500);
+      }
+    });
+
+    // 2. Remote leaderboard updates
+    const unsubLeaderboard = realtimeService.on('leaderboard', (remoteBoard) => {
+      if (Array.isArray(remoteBoard) && remoteBoard.length > 0) {
+        setLeaderboard(remoteBoard);
+      }
+    });
+
+    return () => {
+      unsubSubmissions();
+      unsubLeaderboard();
+    };
+  }, [user]);
+
   // Audio Toggle
   const handleToggleAudio = () => {
     const nextState = !audioMuted;
@@ -62,12 +94,23 @@ export function App() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // Complete Challenge Handler
+  // Complete Challenge Handler with Real-time Multi-User Broadcast
   const handleCompleteChallenge = (challengeId, xpGained) => {
+    const targetChallenge = challenges.find(c => c.id === challengeId);
     const updatedUser = storageService.completeChallenge(challengeId, xpGained);
     setUser({ ...updatedUser });
     setChallenges(storageService.getChallenges());
-    showToast("Challenge Solved! 🎉", `+${xpGained} XP awarded! Leaderboard updated.`);
+    
+    // Broadcast submission event in real-time to all other contestants
+    realtimeService.submitSolution({
+      studentId: updatedUser.studentId,
+      challengeId,
+      challengeTitle: targetChallenge?.title || 'Git Challenge',
+      xpGained,
+      user: updatedUser
+    });
+
+    showToast("Challenge Solved! 🎉", `+${xpGained} XP awarded! Leaderboard updated in real-time.`);
   };
 
   // Complete Daily Quest Handler
@@ -93,6 +136,7 @@ export function App() {
   const handleUpdateUser = (updatedProfile) => {
     storageService.saveUser(updatedProfile);
     setUser(updatedProfile);
+    realtimeService.joinRoom(null, updatedProfile);
     showToast("Profile Saved! ✨", `Member ID ${updatedProfile.studentId} updated.`);
   };
 
@@ -136,9 +180,9 @@ export function App() {
         solvedCount={user.solvedChallengeIds.length}
         totalChallenges={challenges.length}
         onOpenProfile={() => setIsProfileOpen(true)}
-        onOpenCheatsheet={() => setIsCheatsheetOpen(true)}
-        onOpenRules={() => setIsRulesOpen(true)}
-        onOpenNewChallenge={() => setIsNewChallengeOpen(true)}
+        onOpenCheatsheet={() => setIsCheatsheetOpen(false) || setIsCheatsheetOpen(true)}
+        onOpenRules={() => setIsRulesOpen(false) || setIsRulesOpen(true)}
+        onOpenNewChallenge={() => setIsNewChallengeOpen(false) || setIsNewChallengeOpen(true)}
         audioMuted={audioMuted}
         onToggleAudio={handleToggleAudio}
       />
@@ -146,7 +190,7 @@ export function App() {
       {/* Main Content Area */}
       <main className="flex-1">
         
-        {/* Hero Section with Sprint Countdown & Filters */}
+        {/* Hero Section with AcidSquares Background, Sprint Countdown & Filters */}
         <Hero 
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -160,6 +204,12 @@ export function App() {
           difficulties={difficulties}
         />
 
+        {/* Real-time Multiplayer Contest Lobby */}
+        <LiveContestLobby 
+          user={user}
+          onQuickLaunchChallenge={(c) => setActiveChallenge(c)}
+        />
+
         {/* Daily Quest Section */}
         <DailyQuest 
           user={user} 
@@ -167,7 +217,7 @@ export function App() {
         />
 
         {/* Challenges Arena Grid */}
-        <section id="challenges" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        <section id="challenges" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
           
           {/* Section Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
@@ -233,7 +283,7 @@ export function App() {
 
         </section>
 
-        {/* Campus Leaderboard Section */}
+        {/* Campus Leaderboard Section (Real-Time Synced) */}
         <Leaderboard 
           leaderboard={leaderboard}
           currentUser={user}
