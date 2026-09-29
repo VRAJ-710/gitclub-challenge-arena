@@ -4,10 +4,12 @@
 
 ---
 
-## 🚀 Live Demo & Deployment
-- **Deployment Platform**: Vercel / Netlify / GitHub Pages
+## 🚀 Live Working Website
+🌐 **Live Deployed URL**: [https://marvelous-peony-649b13.netlify.app/](https://marvelous-peony-649b13.netlify.app/)  
+📦 **GitHub Repository**: [https://github.com/VRAJ-710/gitclub-challenge-arena](https://github.com/VRAJ-710/gitclub-challenge-arena)  
+- **Hosting Platform**: Netlify (Production CDN)
 - **Build Status**: ✅ Production Ready (0 Errors, 0 Warnings)
-- **Backend**: Express + Socket.IO (`server/`) with cross-tab and cloud real-time sync
+- **Backend Architecture**: Express + Socket.IO (`server/`) with cross-tab and cloud real-time sync
 
 ### Running Frontend & Backend:
 ```bash
